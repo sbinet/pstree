@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -44,6 +45,14 @@ func New() (*Tree, error) {
 		parent.Children = append(parent.Children, pid)
 		procs[parent.Pid] = parent
 	}
+
+	for pid, proc := range procs {
+		if len(proc.Children) > 0 {
+			sort.Ints(proc.Children)
+		}
+		procs[pid] = proc
+	}
+
 	tree := &Tree{
 		Procs: procs,
 	}
