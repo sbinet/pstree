@@ -1,6 +1,8 @@
 pstree
 ======
 
+[![GoDoc](https://godoc.org/github.com/sbinet/pstree?status.svg)](https://godoc.org/github.com/sbinet/pstree)
+
 `pstree` is a simple minded package to retrieve the process tree from a given
 `PID`.
 
@@ -14,6 +16,7 @@ sh> go get github.com/sbinet/pstree
 
 Documentation is available on
 [godoc](https://godoc.org):
+
  https://godoc.org/github.com/sbinet/pstree
 
 
