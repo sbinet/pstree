@@ -4,6 +4,7 @@ package pstree
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,21 @@ func New() (*Tree, error) {
 			continue
 		}
 		procs[proc.Pid] = proc
+	}
+
+	for pid, proc := range procs {
+		if proc.Parent == 0 {
+			continue
+		}
+		parent, ok := procs[proc.Parent]
+		if !ok {
+			log.Panicf(
+				"internal logic error. parent of [%d] does not exist!",
+				pid,
+			)
+		}
+		parent.Children = append(parent.Children, pid)
+		procs[parent.Pid] = parent
 	}
 	tree := &Tree{
 		Procs: procs,
@@ -97,9 +113,9 @@ func scan(dir string) (Process, error) {
 		name = name[1 : len(name)-1]
 	}
 	return Process{
-		Name: name,
-		Pid:  stat.pid,
-		Ppid: stat.ppid,
+		Name:   name,
+		Pid:    stat.pid,
+		Parent: stat.ppid,
 	}, err
 }
 
@@ -110,7 +126,8 @@ type Tree struct {
 
 // Process stores informations about a UNIX process
 type Process struct {
-	Name string
-	Pid  int
-	Ppid int
+	Name     string
+	Pid      int
+	Parent   int
+	Children []int
 }
