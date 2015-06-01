@@ -45,5 +45,8 @@ func main() {
 	}
 
 	fmt.Printf("tree[%d]: %v\n", pid, tree.Procs[pid])
+	for _, proc := range tree.Procs[pid].Children {
+		fmt.Printf("  %#v\n", tree.Procs[proc])
+	}
 }
 ```
