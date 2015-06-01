@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/sbinet/pstree"
 )
@@ -22,7 +23,14 @@ func main() {
 	}
 
 	fmt.Printf("tree[%d]: %v\n", pid, tree.Procs[pid])
-	for _, proc := range tree.Procs[pid].Children {
-		fmt.Printf("  %#v\n", tree.Procs[proc])
+	display(pid, tree, 1)
+}
+
+func display(pid int, tree *pstree.Tree, indent int) {
+	str := strings.Repeat("  ", indent)
+	for _, cid := range tree.Procs[pid].Children {
+		proc := tree.Procs[cid]
+		fmt.Printf("%s%#v\n", str, proc)
+		display(cid, tree, indent+1)
 	}
 }
