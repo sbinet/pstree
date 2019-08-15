@@ -1,5 +1,4 @@
-// package pstree provides an API to retrieve the process tree of a given
-// process-id.
+// package pstree provides an API to retrieve the process tree from procfs.
 package pstree
 
 import (
@@ -24,18 +23,18 @@ func New() (*Tree, error) {
 		if err != nil {
 			return nil, err
 		}
-		if proc.Pid == 0 {
+		if proc.Stat.Pid == 0 {
 			// process vanished since Glob.
 			continue
 		}
-		procs[proc.Pid] = proc
+		procs[proc.Stat.Pid] = proc
 	}
 
 	for pid, proc := range procs {
-		if proc.Parent == 0 {
+		if proc.Stat.Ppid == 0 {
 			continue
 		}
-		parent, ok := procs[proc.Parent]
+		parent, ok := procs[proc.Stat.Ppid]
 		if !ok {
 			log.Panicf(
 				"internal logic error. parent of [%d] does not exist!",
@@ -43,7 +42,7 @@ func New() (*Tree, error) {
 			)
 		}
 		parent.Children = append(parent.Children, pid)
-		procs[parent.Pid] = parent
+		procs[parent.Stat.Pid] = parent
 	}
 
 	for pid, proc := range procs {
@@ -63,6 +62,35 @@ const (
 	statfmt = "%d %s %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
 )
 
+// ProcessStat contains process information.
+// see: http://man7.org/linux/man-pages/man5/proc.5.html
+type ProcessStat struct {
+	Pid       int    // process ID
+	Comm      string // filename of the executable in parentheses
+	State     byte   // process state
+	Ppid      int    // pid of the parent process
+	Pgrp      int    // process group ID of the process
+	Session   int    // session ID of the process
+	Tty       int    // controlling terminal of the process
+	Tpgid     int    // ID of foreground process group
+	Flags     uint32 // kernel flags word of the process
+	Minflt    uint64 // number of minor faults the process has made which have not required loading a memory page from disk
+	Cminflt   uint64 // number of minor faults the process's waited-for children have made
+	Majflt    uint64 // number of major faults the process has made which have required loading a memory page from disk
+	Cmajflt   uint64 // number of major faults the process's waited-for children have made
+	Utime     uint64 // user time in clock ticks
+	Stime     uint64 // system time in clock ticks
+	Cutime    int64  // children user time in clock ticks
+	Cstime    int64  // children system time in clock ticks
+	Priority  int64  // priority
+	Nice      int64  // the nice value
+	Nthreads  int64  // number of threads in this process
+	Itrealval int64  // time in jiffies before next SIGALRM is sent to the process due to an interval timer
+	Starttime int64  // time the process started after system boot in clock ticks
+	Vsize     uint64 // virtual memory size in bytes
+	Rss       int64  // resident set size: number of pages the process has in real memory
+}
+
 func scan(dir string) (Process, error) {
 	f, err := os.Open(filepath.Join(dir, "stat"))
 	if err != nil {
@@ -71,61 +99,30 @@ func scan(dir string) (Process, error) {
 	}
 	defer f.Close()
 
-	// see: http://man7.org/linux/man-pages/man5/proc.5.html
-	stat := struct {
-		pid       int    // process ID
-		comm      string // filename of the executable in parentheses
-		state     byte   // process state
-		ppid      int    // pid of the parent process
-		pgrp      int    // process group ID of the process
-		session   int    // session ID of the process
-		tty       int    // controlling terminal of the process
-		tpgid     int    // ID of foreground process group
-		flags     uint32 // kernel flags word of the process
-		minflt    uint64 // number of minor faults the process has made which have not required loading a memory page from disk
-		cminflt   uint64 // number of minor faults the process's waited-for children have made
-		majflt    uint64 // number of major faults the process has made which have required loading a memory page from disk
-		cmajflt   uint64 // number of major faults the process's waited-for children have made
-		utime     uint64 // user time in clock ticks
-		stime     uint64 // system time in clock ticks
-		cutime    int64  // children user time in clock ticks
-		cstime    int64  // children system time in clock ticks
-		priority  int64  // priority
-		nice      int64  // the nice value
-		nthreads  int64  // number of threads in this process
-		itrealval int64  // time in jiffies before next SIGALRM is sent to the process dure to an interval timer
-		starttime int64  // time the process started after system boot in clock ticks
-		vsize     uint64 // virtual memory size in bytes
-		rss       int64  // resident set size: number of pages the process has in real memory
-	}{}
-
+	var proc Process
 	_, err = fmt.Fscanf(
 		f, statfmt,
-		&stat.pid, &stat.comm, &stat.state,
-		&stat.ppid, &stat.pgrp, &stat.session,
-		&stat.tty, &stat.tpgid, &stat.flags,
-		&stat.minflt, &stat.cminflt, &stat.majflt, &stat.cmajflt,
-		&stat.utime, &stat.stime,
-		&stat.cutime, &stat.cstime,
-		&stat.priority,
-		&stat.nice,
-		&stat.nthreads,
-		&stat.itrealval, &stat.starttime,
-		&stat.vsize, &stat.rss,
+		&proc.Stat.Pid, &proc.Stat.Comm, &proc.Stat.State,
+		&proc.Stat.Ppid, &proc.Stat.Pgrp, &proc.Stat.Session,
+		&proc.Stat.Tty, &proc.Stat.Tpgid, &proc.Stat.Flags,
+		&proc.Stat.Minflt, &proc.Stat.Cminflt, &proc.Stat.Majflt, &proc.Stat.Cmajflt,
+		&proc.Stat.Utime, &proc.Stat.Stime,
+		&proc.Stat.Cutime, &proc.Stat.Cstime,
+		&proc.Stat.Priority,
+		&proc.Stat.Nice,
+		&proc.Stat.Nthreads,
+		&proc.Stat.Itrealval, &proc.Stat.Starttime,
+		&proc.Stat.Vsize, &proc.Stat.Rss,
 	)
 	if err != nil {
-		return Process{}, err
+		return proc, err
 	}
 
-	name := stat.comm
-	if strings.HasPrefix(name, "(") && strings.HasSuffix(name, ")") {
-		name = name[1 : len(name)-1]
+	proc.Name = proc.Stat.Comm
+	if strings.HasPrefix(proc.Name, "(") && strings.HasSuffix(proc.Name, ")") {
+		proc.Name = proc.Name[1 : len(proc.Name)-1]
 	}
-	return Process{
-		Name:   name,
-		Pid:    stat.pid,
-		Parent: stat.ppid,
-	}, err
+	return proc, nil
 }
 
 // Tree is a tree of processes.
@@ -133,10 +130,9 @@ type Tree struct {
 	Procs map[int]Process
 }
 
-// Process stores informations about a UNIX process
+// Process stores information about a UNIX process.
 type Process struct {
 	Name     string
-	Pid      int
-	Parent   int
+	Stat     ProcessStat
 	Children []int
 }
