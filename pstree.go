@@ -92,7 +92,8 @@ type ProcessStat struct {
 }
 
 func scan(dir string) (Process, error) {
-	data, err := ioutil.ReadFile(filepath.Join(dir, "stat"))
+	stat := filepath.Join(dir, "stat")
+	data, err := ioutil.ReadFile(stat)
 	if err != nil {
 		// process vanished since Glob.
 		return Process{}, nil
@@ -102,7 +103,7 @@ func scan(dir string) (Process, error) {
 	})
 
 	if len(info) != 3 {
-		return Process{}, fmt.Errorf("file %s format not correct", filepath.Join(dir, "stat"))
+		return Process{}, fmt.Errorf("file %s format not correct", stat)
 	}
 
 	var proc Process
@@ -122,7 +123,7 @@ func scan(dir string) (Process, error) {
 		&proc.Stat.Vsize, &proc.Stat.Rss,
 	)
 	if err != nil {
-		return proc, err
+		return proc, fmt.Errorf("%s err:%s", stat, err)
 	}
 
 	proc.Name = proc.Stat.Comm
