@@ -7,8 +7,8 @@ package pstree // import "github.com/sbinet/pstree"
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -63,7 +63,7 @@ func New() (*Tree, error) {
 }
 
 const (
-	statfmt = "%d %s %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
+	statfmt = "%d %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
 )
 
 // ProcessStat contains process information.
@@ -96,17 +96,26 @@ type ProcessStat struct {
 }
 
 func scan(dir string) (Process, error) {
-	f, err := os.Open(filepath.Join(dir, "stat"))
+	stat := filepath.Join(dir, "stat")
+	data, err := ioutil.ReadFile(stat)
 	if err != nil {
 		// process vanished since Glob.
 		return Process{}, nil
 	}
-	defer f.Close()
+	// extracting the name of the process, enclosed in matching parentheses.
+	info := strings.FieldsFunc(string(data), func(r rune) bool {
+		return r == '(' || r == ')'
+	})
+
+	if len(info) != 3 {
+		return Process{}, fmt.Errorf("%s: file format invalid", stat)
+	}
 
 	var proc Process
-	_, err = fmt.Fscanf(
-		f, statfmt,
-		&proc.Stat.Pid, &proc.Stat.Comm, &proc.Stat.State,
+	proc.Stat.Comm = info[1]
+	_, err = fmt.Sscanf(
+		info[0]+info[2], statfmt,
+		&proc.Stat.Pid, &proc.Stat.State,
 		&proc.Stat.Ppid, &proc.Stat.Pgrp, &proc.Stat.Session,
 		&proc.Stat.Tty, &proc.Stat.Tpgid, &proc.Stat.Flags,
 		&proc.Stat.Minflt, &proc.Stat.Cminflt, &proc.Stat.Majflt, &proc.Stat.Cmajflt,
@@ -119,13 +128,11 @@ func scan(dir string) (Process, error) {
 		&proc.Stat.Vsize, &proc.Stat.Rss,
 	)
 	if err != nil {
-		return proc, err
+		return proc, fmt.Errorf("could not parse file %s: %w", stat, err)
+
 	}
 
 	proc.Name = proc.Stat.Comm
-	if strings.HasPrefix(proc.Name, "(") && strings.HasSuffix(proc.Name, ")") {
-		proc.Name = proc.Name[1 : len(proc.Name)-1]
-	}
 	return proc, nil
 }
 
