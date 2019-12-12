@@ -98,12 +98,13 @@ func scan(dir string) (Process, error) {
 		// process vanished since Glob.
 		return Process{}, nil
 	}
+	// extracting the name of the process, enclosed in matching parentheses.
 	info := strings.FieldsFunc(string(data), func(r rune) bool {
 		return r == '(' || r == ')'
 	})
 
 	if len(info) != 3 {
-		return Process{}, fmt.Errorf("file %s format not correct", stat)
+		return Process{}, fmt.Errorf("%s: file format invalid", stat)
 	}
 
 	var proc Process
@@ -123,7 +124,8 @@ func scan(dir string) (Process, error) {
 		&proc.Stat.Vsize, &proc.Stat.Rss,
 	)
 	if err != nil {
-		return proc, fmt.Errorf("%s err:%s", stat, err)
+		return proc, fmt.Errorf("could not parse file %s: %w", stat, err)
+
 	}
 
 	proc.Name = proc.Stat.Comm
