@@ -1,5 +1,9 @@
-// package pstree provides an API to retrieve the process tree from procfs.
-package pstree
+// Copyright 2015 The pstree Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package pstree provides an API to retrieve the process tree from procfs.
+package pstree // import "github.com/sbinet/pstree"
 
 import (
 	"fmt"
@@ -21,7 +25,7 @@ func New() (*Tree, error) {
 	for _, dir := range files {
 		proc, err := scan(dir)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("could not scan %s: %w", dir, err)
 		}
 		if proc.Stat.Pid == 0 {
 			// process vanished since Glob.
