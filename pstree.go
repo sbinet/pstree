@@ -8,9 +8,9 @@ package pstree // import "github.com/sbinet/pstree"
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -18,7 +18,7 @@ import (
 func New() (*Tree, error) {
 	files, err := filepath.Glob("/proc/[0-9]*")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pstree: could not list pid files under /proc: %w", err)
 	}
 
 	procs := make(map[int]Process, len(files))
@@ -40,9 +40,8 @@ func New() (*Tree, error) {
 		}
 		parent, ok := procs[proc.Stat.Ppid]
 		if !ok {
-			log.Panicf(
-				"internal logic error. parent of [%d] does not exist!",
-				pid,
+			return nil, fmt.Errorf("pstree: parent pid=%d of pid=%d does not exist",
+				proc.Stat.Ppid, pid,
 			)
 		}
 		parent.Children = append(parent.Children, pid)
@@ -63,7 +62,10 @@ func New() (*Tree, error) {
 }
 
 const (
-	statfmt = "%d %c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
+	// statfmt is the stat format as described in proc.5.html
+	// note that the first 2 fields "pid" and "(comm)" are dealt with separately
+	// and are thus not specified in statfmt below.
+	statfmt = "%c %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d"
 )
 
 // ProcessStat contains process information.
@@ -111,11 +113,20 @@ func scan(dir string) (Process, error) {
 		return Process{}, fmt.Errorf("%s: file format invalid", stat)
 	}
 
+	for i, v := range info {
+		info[i] = strings.TrimSpace(v)
+	}
+
 	var proc Process
+	proc.Stat.Pid, err = strconv.Atoi(info[0])
+	if err != nil {
+		return Process{}, fmt.Errorf("%s: invalid pid format %q: %w", stat, info[0], err)
+	}
 	proc.Stat.Comm = info[1]
+
 	_, err = fmt.Sscanf(
-		info[0]+info[2], statfmt,
-		&proc.Stat.Pid, &proc.Stat.State,
+		info[2], statfmt,
+		&proc.Stat.State,
 		&proc.Stat.Ppid, &proc.Stat.Pgrp, &proc.Stat.Session,
 		&proc.Stat.Tty, &proc.Stat.Tpgid, &proc.Stat.Flags,
 		&proc.Stat.Minflt, &proc.Stat.Cminflt, &proc.Stat.Majflt, &proc.Stat.Cmajflt,
