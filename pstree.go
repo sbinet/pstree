@@ -163,10 +163,10 @@ func scan(dir string) (Process, error) {
 	}
 
 	cwd := filepath.Join(dir, "cwd")
-	fi, err := os.Stat(cwd)
+	pwd, err := os.Readlink(cwd)
 	switch {
 	case err == nil:
-		proc.Stat.Cwd = fi.Name()
+		proc.Stat.Cwd = pwd
 	default:
 		if err != nil {
 			if !errors.Is(err, os.ErrPermission) {
