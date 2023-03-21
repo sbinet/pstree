@@ -6,8 +6,11 @@
 package pstree // import "github.com/sbinet/pstree"
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -95,6 +98,10 @@ type ProcessStat struct {
 	Starttime int64  `json:"starttime"` // time the process started after system boot in clock ticks
 	Vsize     uint64 `json:"vsize"`     // virtual memory size in bytes
 	RSS       int64  `json:"rss"`       // resident set size: number of pages the process has in real memory
+
+	Environ string `json:"environ"` // environment for the process
+	Cwd     string `json:"cwd"`     // current working directory for the process
+	Cmdline string `json:"cmdline"` // complete command line for the process
 }
 
 func scan(dir string) (Process, error) {
@@ -140,8 +147,40 @@ func scan(dir string) (Process, error) {
 	)
 	if err != nil {
 		return proc, fmt.Errorf("could not parse file %s: %w", stat, err)
-
 	}
+
+	environ := filepath.Join(dir, "environ")
+	env, err := os.ReadFile(environ)
+	switch {
+	case err == nil:
+		proc.Stat.Environ = base64.StdEncoding.EncodeToString(env)
+	default:
+		if err != nil {
+			if !errors.Is(err, os.ErrPermission) {
+				return proc, fmt.Errorf("could not parse file %s: %w", environ, err)
+			}
+		}
+	}
+
+	cwd := filepath.Join(dir, "cwd")
+	fi, err := os.Stat(cwd)
+	switch {
+	case err == nil:
+		proc.Stat.Cwd = fi.Name()
+	default:
+		if err != nil {
+			if !errors.Is(err, os.ErrPermission) {
+				return proc, fmt.Errorf("could not stat %s: %w", cwd, err)
+			}
+		}
+	}
+
+	cmdline := filepath.Join(dir, "cmdline")
+	args, err := os.ReadFile(cmdline)
+	if err != nil {
+		return proc, fmt.Errorf("could not read %s: %w", cmdline, err)
+	}
+	proc.Stat.Cmdline = base64.StdEncoding.EncodeToString(args)
 
 	proc.Name = proc.Stat.Comm
 	return proc, nil
